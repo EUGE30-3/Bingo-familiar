@@ -1,0 +1,546 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bingo Virtual Familiar (1 - 31)</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- QRCode.js para generación de códigos QR -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    <!-- Canvas Confetti para celebración -->
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+    
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600;700&display=swap');
+        body {
+            font-family: 'Fredoka', sans-serif;
+        }
+        .ball-pop {
+            animation: popIn 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+        @keyframes popIn {
+            0% { transform: scale(0) rotate(-180deg); opacity: 0; }
+            100% { transform: scale(1) rotate(0deg); opacity: 1; }
+        }
+        .marked-cell {
+            background-color: #10B981 !important;
+            color: white !important;
+            transform: scale(0.95);
+            box-shadow: inset 0 2px 4px rgba(0,0,0,0.2);
+        }
+    </style>
+</head>
+<body class="bg-slate-900 text-slate-100 min-h-screen flex flex-col">
+
+    <!-- Encabezado Principal -->
+    <header class="bg-gradient-to-r from-purple-700 via-pink-600 to-red-500 p-4 shadow-lg">
+        <div class="max-w-4xl mx-auto flex justify-between items-center">
+            <div class="flex items-center space-x-3">
+                <i class="fa-solid fa-dice-d6 text-3xl text-yellow-300 animate-bounce"></i>
+                <h1 class="text-2xl md:text-3xl font-bold tracking-wide">Bingo Virtual</h1>
+            </div>
+            <div id="roleSelector" class="flex gap-2">
+                <button onclick="switchRole('player')" id="btnRolePlayer" class="px-4 py-2 rounded-full font-bold bg-white text-purple-700 shadow-md transition hover:bg-slate-100 text-sm md:text-base">
+                    <i class="fa-solid fa-user-group mr-1"></i> Jugador
+                </button>
+                <button onclick="switchRole('admin')" id="btnRoleAdmin" class="px-4 py-2 rounded-full font-bold bg-purple-900/50 text-white hover:bg-purple-900/80 transition text-sm md:text-base">
+                    <i class="fa-solid fa-user-gear mr-1"></i> Organizador
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Contenido Principal -->
+    <main class="flex-grow max-w-4xl w-full mx-auto p-4 flex flex-col justify-center">
+
+        <!-- ================= VISTA JUGADOR ================= -->
+        <section id="playerView" class="space-y-6">
+            
+            <!-- Indicador de Asignación de Cartón -->
+            <div class="bg-slate-800 p-4 rounded-2xl border border-slate-700 shadow-xl flex items-center justify-between">
+                <div>
+                    <h2 class="text-lg font-bold text-yellow-400">
+                        <i class="fa-solid fa-ticket mr-2"></i>Tu Cartón Asignado
+                    </h2>
+                    <p class="text-xs text-slate-400">Cartón privado asignado aleatoriamente por el sistema</p>
+                </div>
+                <button onclick="assignRandomTicket()" class="px-3 py-2 bg-purple-700/60 hover:bg-purple-600 text-purple-200 rounded-xl text-xs font-bold transition flex items-center gap-1 border border-purple-500/50">
+                    <i class="fa-solid fa-shuffle"></i> Cambiar Cartón
+                </button>
+            </div>
+
+            <!-- Cartón de Bingo (3 columnas x 2 filas = 6 números) -->
+            <div id="ticketContainer" class="bg-gradient-to-br from-indigo-900 via-slate-800 to-purple-900 p-6 rounded-3xl border-4 border-yellow-400 shadow-2xl space-y-4">
+                <div class="flex justify-between items-center border-b border-slate-700 pb-3">
+                    <span class="text-lg font-bold text-slate-300">Cartón <span id="displayTicketNum" class="text-yellow-400 text-2xl">#--</span></span>
+                    <span class="text-xs bg-purple-900/80 px-3 py-1 rounded-full text-purple-200 border border-purple-500">6 Números (1 al 31)</span>
+                </div>
+
+                <!-- Rejilla de 2 filas x 3 columnas -->
+                <div id="bingoGrid" class="grid grid-cols-3 gap-3 md:gap-4 my-4">
+                    <!-- Las casillas se generan con JavaScript -->
+                </div>
+
+                <!-- Botones de Acción para el Jugador -->
+                <div class="pt-2 flex flex-col sm:flex-row gap-3 justify-between">
+                    <button onclick="resetTicketMarks()" class="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-slate-300 font-bold rounded-xl transition flex items-center justify-center gap-2">
+                        <i class="fa-solid fa-rotate-left"></i> Limpiar Marcas
+                    </button>
+                    <button onclick="claimBingo()" class="px-6 py-3 bg-gradient-to-r from-emerald-500 to-green-600 hover:from-emerald-400 hover:to-green-500 text-white font-extrabold text-xl rounded-xl shadow-lg transform active:scale-95 transition flex items-center justify-center gap-2 border-2 border-green-300 animate-pulse">
+                        <i class="fa-solid fa-trophy text-yellow-300"></i> ¡CANTAR BINGO!
+                    </button>
+                </div>
+            </div>
+
+            <!-- Instrucciones Cortas para Jugadores -->
+            <div class="bg-slate-800/60 p-4 rounded-xl text-sm text-slate-400 border border-slate-700/50">
+                <p><i class="fa-solid fa-circle-info text-purple-400 mr-1"></i> <strong>¿Cómo jugar?</strong> Toca sobre los números de tu cartón a medida que el organizador los cante para marcarlos. ¡El primero en completar sus 6 números grita BINGO!</p>
+            </div>
+        </section>
+
+
+        <!-- ================= VISTA ADMINISTRADOR / ORGANIZADOR ================= -->
+        <section id="adminView" class="hidden space-y-6">
+            
+            <!-- Panel Principal del Sorteador -->
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                
+                <!-- Sacar Bolilla y Número Actual -->
+                <div class="bg-slate-800 p-6 rounded-2xl border border-slate-700 shadow-xl flex flex-col items-center justify-center text-center">
+                    <h2 class="text-lg font-bold text-slate-400 mb-2">ÚLTIMA BOLILLA EXTRAÍDA</h2>
+                    
+                    <!-- Display de la Bolilla -->
+                    <div class="relative my-4">
+                        <div id="currentBall" class="w-36 h-36 rounded-full bg-gradient-to-br from-yellow-300 via-amber-500 to-amber-700 text-slate-900 font-extrabold text-6xl flex items-center justify-center shadow-2xl border-4 border-amber-200">
+                            --
+                        </div>
+                    </div>
+
+                    <div class="text-sm text-slate-400 mb-5">
+                        Bolillas sacadas: <span id="drawnCount" class="font-bold text-yellow-400">0</span> / 31
+                    </div>
+
+                    <div class="w-full flex gap-3">
+                        <button onclick="drawBall()" id="btnDrawBall" class="flex-1 py-4 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-white font-extrabold text-xl rounded-xl shadow-lg transform active:scale-95 transition border border-purple-400">
+                            <i class="fa-solid fa-circle-play mr-2"></i> Sacar Bolilla
+                        </button>
+                        <button onclick="resetGame()" class="px-4 py-4 bg-red-900/60 hover:bg-red-800 text-red-200 font-bold rounded-xl transition border border-red-700" title="Reiniciar Partida">
+                            <i class="fa-solid fa-trash-arrow-up text-lg"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Configuración de Dirección y Compartir QR -->
+                <div class="bg-slate-800 p-6 rounded-2xl border border-slate-700 shadow-xl flex flex-col items-center justify-between space-y-3">
+                    <h2 class="text-lg font-bold text-yellow-400"><i class="fa-solid fa-qrcode mr-2"></i>Acceso para Familias</h2>
+                    
+                    <div class="bg-white p-3 rounded-xl shadow-md">
+                        <div id="qrcode"></div>
+                    </div>
+
+                    <!-- Configuración de la URL web o local -->
+                    <div class="w-full space-y-1">
+                        <label for="customUrlInput" class="text-xs text-slate-400 font-medium">URL o Dirección Web del Juego:</label>
+                        <div class="flex gap-2">
+                            <input type="text" id="customUrlInput" class="bg-slate-700 text-white text-xs px-3 py-2 rounded-lg border border-slate-600 flex-1 focus:outline-none focus:ring-1 focus:ring-purple-500" placeholder="https://tu-sitio-o-ip/...">
+                            <button onclick="updateQrFromInput()" class="px-3 py-2 bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold rounded-lg transition">
+                                Actualizar QR
+                            </button>
+                        </div>
+                    </div>
+
+                    <button onclick="copyGameUrl()" class="w-full py-2 bg-slate-700 hover:bg-slate-600 text-slate-200 rounded-lg text-sm font-semibold transition flex items-center justify-center gap-2">
+                        <i class="fa-solid fa-copy"></i> Copiar Enlace
+                    </button>
+                </div>
+            </div>
+
+            <!-- Historial del Tablero (1 al 31) -->
+            <div class="bg-slate-800 p-6 rounded-2xl border border-slate-700 shadow-xl space-y-3">
+                <h3 class="text-lg font-bold text-slate-200 flex items-center justify-between">
+                    <span><i class="fa-solid fa-list-ol text-purple-400 mr-2"></i>Tablero General (1 - 31)</span>
+                </h3>
+                <div id="boardGrid" class="grid grid-cols-7 sm:grid-cols-11 gap-2">
+                    <!-- Generado dinámicamente de 1 a 31 -->
+                </div>
+            </div>
+
+            <!-- Verificador de Cartón Ganador -->
+            <div class="bg-slate-800 p-6 rounded-2xl border border-slate-700 shadow-xl space-y-4">
+                <h3 class="text-lg font-bold text-yellow-400"><i class="fa-solid fa-shield-halved mr-2"></i>Verificador de Cartones Ganadores</h3>
+                <div class="flex gap-3">
+                    <input type="number" id="verifyTicketInput" min="1" max="23" placeholder="N° de Cartón que cantó Bingo (1-23)" class="bg-slate-700 text-white px-4 py-2 rounded-xl border border-slate-600 flex-1 font-bold focus:outline-none focus:ring-2 focus:ring-purple-500">
+                    <button onclick="verifyTicket()" class="px-5 py-2 bg-purple-600 hover:bg-purple-500 text-white font-bold rounded-xl transition">
+                        Verificar
+                    </button>
+                </div>
+                <div id="verificationResult" class="hidden p-4 rounded-xl text-sm font-medium"></div>
+            </div>
+
+        </section>
+
+    </main>
+
+    <!-- Modal de Alerta / Celebración -->
+    <div id="customModal" class="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 z-50 hidden">
+        <div class="bg-slate-800 border-2 border-purple-500 rounded-2xl max-w-sm w-full p-6 text-center shadow-2xl space-y-4 transform transition-all scale-100">
+            <div id="modalIcon" class="text-5xl text-yellow-400">
+                <i class="fa-solid fa-trophy"></i>
+            </div>
+            <h3 id="modalTitle" class="text-2xl font-bold text-white">¡BINGO!</h3>
+            <p id="modalMessage" class="text-slate-300 text-sm">Has completado tu cartón.</p>
+            <button onclick="closeModal()" class="w-full py-3 bg-purple-600 hover:bg-purple-500 text-white font-bold rounded-xl transition">
+                Aceptar
+            </button>
+        </div>
+    </div>
+
+    <!-- Script de Lógica Principal -->
+    <script>
+        // Data determinista para los 23 cartones de 2 filas x 3 columnas (6 números por cartón del 1 al 31)
+        const TICKETS_DATA = [
+            [3, 8, 14, 19, 22, 29],   // Cartón 1
+            [1, 7, 12, 18, 25, 30],   // Cartón 2
+            [4, 10, 15, 21, 27, 31],  // Cartón 3
+            [2, 9, 13, 17, 24, 28],   // Cartón 4
+            [5, 11, 16, 20, 23, 26],  // Cartón 5
+            [1, 6, 14, 20, 25, 29],   // Cartón 6
+            [3, 9, 12, 18, 22, 31],   // Cartón 7
+            [2, 8, 15, 19, 27, 30],   // Cartón 8
+            [5, 10, 13, 21, 24, 28],  // Cartón 9
+            [4, 7, 16, 17, 23, 26],   // Cartón 10
+            [2, 11, 14, 18, 22, 27],  // Cartón 11
+            [1, 8, 13, 19, 25, 31],   // Cartón 12
+            [3, 6, 15, 20, 24, 29],   // Cartón 13
+            [5, 9, 12, 17, 23, 30],   // Cartón 14
+            [4, 10, 16, 21, 26, 28],  // Cartón 15
+            [2, 7, 12, 19, 24, 29],   // Cartón 16
+            [1, 9, 15, 18, 23, 30],   // Cartón 17
+            [3, 11, 14, 20, 27, 31],  // Cartón 18
+            [5, 8, 13, 17, 22, 26],   // Cartón 19
+            [4, 6, 16, 21, 25, 28],   // Cartón 20
+            [1, 10, 14, 19, 23, 27],  // Cartón 21
+            [2, 6, 15, 20, 22, 30],   // Cartón 22
+            [3, 7, 11, 18, 26, 31]    // Cartón 23
+        ];
+
+        // Estado Global de la partida
+        let drawnBalls = [];
+        let currentTicketIndex = 0;
+        let markedNumbers = new Set();
+        let targetGameUrl = window.location.href;
+
+        // Inicialización al cargar la página
+        window.onload = function() {
+            initAdminBoard();
+            
+            // Asignación aleatoria automática al ingresar
+            assignRandomTicket();
+
+            // Configurar input y QR inicial
+            document.getElementById('customUrlInput').value = window.location.href;
+            generateQRCode(window.location.href);
+
+            loadGameState();
+        };
+
+        // Asignar un cartón aleatorio al jugador
+        function assignRandomTicket() {
+            // Genera un índice entre 0 y 22
+            currentTicketIndex = Math.floor(Math.random() * TICKETS_DATA.length);
+            loadPlayerTicket(currentTicketIndex);
+        }
+
+        // Cargar y renderizar un cartón del jugador
+        function loadPlayerTicket(index) {
+            currentTicketIndex = index;
+            document.getElementById('displayTicketNum').textContent = `#${currentTicketIndex + 1}`;
+            
+            const grid = document.getElementById('bingoGrid');
+            grid.innerHTML = '';
+            markedNumbers.clear();
+
+            const numbers = TICKETS_DATA[currentTicketIndex];
+
+            // Renderizar 6 números en 2 filas x 3 columnas
+            numbers.forEach((num) => {
+                const btn = document.createElement('button');
+                btn.className = `h-20 sm:h-24 rounded-2xl bg-slate-700/80 hover:bg-slate-600 border-2 border-purple-500/40 text-3xl sm:text-4xl font-extrabold text-white shadow-md flex items-center justify-center transition active:scale-90`;
+                btn.textContent = num;
+                btn.onclick = () => toggleMarkNumber(btn, num);
+                grid.appendChild(btn);
+            });
+        }
+
+        // Marcar/Desmarcar número en el cartón
+        function toggleMarkNumber(button, num) {
+            if (markedNumbers.has(num)) {
+                markedNumbers.delete(num);
+                button.classList.remove('marked-cell');
+            } else {
+                markedNumbers.add(num);
+                button.classList.add('marked-cell');
+                playBeepSound();
+            }
+        }
+
+        // Limpiar marcas del cartón actual
+        function resetTicketMarks() {
+            markedNumbers.clear();
+            const cells = document.querySelectorAll('#bingoGrid button');
+            cells.forEach(cell => cell.classList.remove('marked-cell'));
+        }
+
+        // Cantar Bingo por parte del jugador
+        function claimBingo() {
+            const ticketNums = TICKETS_DATA[currentTicketIndex];
+            const isComplete = ticketNums.every(n => markedNumbers.has(n));
+
+            if (isComplete) {
+                triggerConfetti();
+                showModal(
+                    '¡BINGO CONFIRMADO!', 
+                    `¡Felicitaciones! Has completado todos los números de tu Cartón #${currentTicketIndex + 1}. Por favor avisa al organizador.`,
+                    '<i class="fa-solid fa-trophy text-yellow-300 animate-bounce"></i>'
+                );
+            } else {
+                showModal(
+                    'Aún no completas el Bingo', 
+                    `Tienes ${markedNumbers.size} de 6 números marcados. ¡Sigue atento a las bolillas!`,
+                    '<i class="fa-solid fa-circle-exclamation text-amber-400"></i>'
+                );
+            }
+        }
+
+        // ================= VISTA ADMINISTRADOR =================
+
+        // Inicializar rejilla de 31 números en el panel de control
+        function initAdminBoard() {
+            const board = document.getElementById('boardGrid');
+            board.innerHTML = '';
+
+            for (let i = 1; i <= 31; i++) {
+                const cell = document.createElement('div');
+                cell.id = `board-num-${i}`;
+                cell.className = `h-10 rounded-lg bg-slate-700/50 border border-slate-600/50 flex items-center justify-center text-sm font-bold text-slate-400 transition`;
+                cell.textContent = i;
+                board.appendChild(cell);
+            }
+        }
+
+        // Extraer una nueva bolilla (1 al 31) sin repetición
+        function drawBall() {
+            if (drawnBalls.length >= 31) {
+                showModal('Juego Finalizado', 'Ya han salido las 31 bolillas.', '<i class="fa-solid fa-flag-checkered text-purple-400"></i>');
+                return;
+            }
+
+            let available = [];
+            for (let i = 1; i <= 31; i++) {
+                if (!drawnBalls.includes(i)) available.push(i);
+            }
+
+            const picked = available[Math.floor(Math.random() * available.length)];
+            drawnBalls.push(picked);
+
+            // Actualizar interfaz
+            const currentBallEl = document.getElementById('currentBall');
+            currentBallEl.textContent = picked;
+            currentBallEl.classList.remove('ball-pop');
+            void currentBallEl.offsetWidth; // Trigger reflow
+            currentBallEl.classList.add('ball-pop');
+
+            document.getElementById('drawnCount').textContent = drawnBalls.length;
+
+            // Actualizar tablero general
+            const boardCell = document.getElementById(`board-num-${picked}`);
+            if (boardCell) {
+                boardCell.className = 'h-10 rounded-lg bg-gradient-to-r from-amber-400 to-yellow-500 text-slate-900 font-extrabold flex items-center justify-center text-base shadow-md transform scale-105';
+            }
+
+            saveGameState();
+            playPopSound();
+        }
+
+        // Reiniciar la partida
+        function resetGame() {
+            if (confirm('¿Estás seguro de reiniciar la partida? Se borrará el historial de bolillas.')) {
+                drawnBalls = [];
+                document.getElementById('currentBall').textContent = '--';
+                document.getElementById('drawnCount').textContent = '0';
+                initAdminBoard();
+                saveGameState();
+            }
+        }
+
+        // Verificar si un cartón es ganador según las bolillas extraídas
+        function verifyTicket() {
+            const input = document.getElementById('verifyTicketInput');
+            const num = parseInt(input.value);
+            const resDiv = document.getElementById('verificationResult');
+
+            if (isNaN(num) || num < 1 || num > 23) {
+                resDiv.className = 'p-3 rounded-xl bg-red-900/50 text-red-200 border border-red-700 text-sm font-semibold';
+                resDiv.textContent = 'Por favor ingresa un número de cartón válido entre 1 y 23.';
+                resDiv.classList.remove('hidden');
+                return;
+            }
+
+            const ticketNums = TICKETS_DATA[num - 1];
+            const drawnSet = new Set(drawnBalls);
+            const matched = ticketNums.filter(n => drawnSet.has(n));
+            const missing = ticketNums.filter(n => !drawnSet.has(n));
+
+            resDiv.classList.remove('hidden');
+            if (missing.length === 0) {
+                resDiv.className = 'p-4 rounded-xl bg-emerald-900/60 text-emerald-200 border border-emerald-500 text-sm font-bold shadow-lg';
+                resDiv.innerHTML = `<i class="fa-solid fa-circle-check text-emerald-400 text-lg mr-2"></i> ¡CARTÓN #${num} ES GANADOR! Ha completado los 6 números: (${ticketNums.join(', ')})`;
+                triggerConfetti();
+            } else {
+                resDiv.className = 'p-4 rounded-xl bg-slate-700 text-slate-300 border border-slate-600 text-sm font-medium';
+                resDiv.innerHTML = `<i class="fa-solid fa-clock text-amber-400 mr-2"></i> Cartón #${num} tiene <strong>${matched.length} de 6</strong> números.<br><span class="text-xs text-slate-400">Le faltan: ${missing.join(', ')}</span>`;
+            }
+        }
+
+        // Generar Código QR de la URL personalizada o actual
+        function generateQRCode(url) {
+            targetGameUrl = url;
+            const qrContainer = document.getElementById("qrcode");
+            qrContainer.innerHTML = "";
+            new QRCode(qrContainer, {
+                text: url,
+                width: 140,
+                height: 140,
+                colorDark : "#0f172a",
+                colorLight : "#ffffff",
+                correctLevel : QRCode.CorrectLevel.H
+            });
+        }
+
+        // Actualizar el QR con la dirección personalizada por el organizador
+        function updateQrFromInput() {
+            const inputVal = document.getElementById('customUrlInput').value.trim();
+            if (inputVal) {
+                generateQRCode(inputVal);
+                showModal('Código QR Actualizado', 'El código QR ahora apunta a la dirección ingresada.', '<i class="fa-solid fa-qrcode text-purple-400"></i>');
+            }
+        }
+
+        // Copiar URL del juego al portapapeles
+        function copyGameUrl() {
+            const dummy = document.createElement('input');
+            document.body.appendChild(dummy);
+            dummy.value = targetGameUrl;
+            dummy.select();
+            document.execCommand('copy');
+            document.body.removeChild(dummy);
+            
+            showModal('Enlace Copiado', 'Se ha copiado la dirección web al portapapeles.', '<i class="fa-solid fa-link text-purple-400"></i>');
+        }
+
+        // Cambio de pestañas entre Jugador y Organizador
+        function switchRole(role) {
+            const playerView = document.getElementById('playerView');
+            const adminView = document.getElementById('adminView');
+            const btnPlayer = document.getElementById('btnRolePlayer');
+            const btnAdmin = document.getElementById('btnRoleAdmin');
+
+            if (role === 'player') {
+                playerView.classList.remove('hidden');
+                adminView.classList.add('hidden');
+                btnPlayer.className = "px-4 py-2 rounded-full font-bold bg-white text-purple-700 shadow-md transition hover:bg-slate-100 text-sm md:text-base";
+                btnAdmin.className = "px-4 py-2 rounded-full font-bold bg-purple-900/50 text-white hover:bg-purple-900/80 transition text-sm md:text-base";
+            } else {
+                playerView.classList.add('hidden');
+                adminView.classList.remove('hidden');
+                btnAdmin.className = "px-4 py-2 rounded-full font-bold bg-white text-purple-700 shadow-md transition hover:bg-slate-100 text-sm md:text-base";
+                btnPlayer.className = "px-4 py-2 rounded-full font-bold bg-purple-900/50 text-white hover:bg-purple-900/80 transition text-sm md:text-base";
+            }
+        }
+
+        // Modal de interacción
+        function showModal(title, msg, iconHtml) {
+            document.getElementById('modalTitle').textContent = title;
+            document.getElementById('modalMessage').innerHTML = msg;
+            if (iconHtml) document.getElementById('modalIcon').innerHTML = iconHtml;
+            document.getElementById('customModal').classList.remove('hidden');
+        }
+
+        function closeModal() {
+            document.getElementById('customModal').classList.add('hidden');
+        }
+
+        // Efecto de Confeti
+        function triggerConfetti() {
+            if (typeof confetti === 'function') {
+                confetti({
+                    particleCount: 120,
+                    spread: 80,
+                    origin: { y: 0.6 }
+                });
+            }
+        }
+
+        // Sonidos con Web Audio API (Sin depender de archivos externos)
+        function playBeepSound() {
+            try {
+                const ctx = new (window.AudioContext || window.webkitAudioContext)();
+                const osc = ctx.createOscillator();
+                const gain = ctx.createGain();
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(587.33, ctx.currentTime); // D5
+                gain.gain.setValueAtTime(0.1, ctx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.15);
+                osc.connect(gain);
+                gain.connect(ctx.destination);
+                osc.start();
+                osc.stop(ctx.currentTime + 0.15);
+            } catch (e) {}
+        }
+
+        function playPopSound() {
+            try {
+                const ctx = new (window.AudioContext || window.webkitAudioContext)();
+                const osc = ctx.createOscillator();
+                const gain = ctx.createGain();
+                osc.type = 'triangle';
+                osc.frequency.setValueAtTime(300, ctx.currentTime);
+                osc.frequency.exponentialRampToValueAtTime(800, ctx.currentTime + 0.1);
+                gain.gain.setValueAtTime(0.2, ctx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.12);
+                osc.connect(gain);
+                gain.connect(ctx.destination);
+                osc.start();
+                osc.stop(ctx.currentTime + 0.12);
+            } catch (e) {}
+        }
+
+        // Persistencia básica de estado del sorteo
+        function saveGameState() {
+            localStorage.setItem('bingo_drawn_balls', JSON.stringify(drawnBalls));
+        }
+
+        function loadGameState() {
+            const saved = localStorage.getItem('bingo_drawn_balls');
+            if (saved) {
+                try {
+                    drawnBalls = JSON.parse(saved);
+                    document.getElementById('drawnCount').textContent = drawnBalls.length;
+                    if (drawnBalls.length > 0) {
+                        document.getElementById('currentBall').textContent = drawnBalls[drawnBalls.length - 1];
+                    }
+                    drawnBalls.forEach(num => {
+                        const cell = document.getElementById(`board-num-${num}`);
+                        if (cell) {
+                            cell.className = 'h-10 rounded-lg bg-gradient-to-r from-amber-400 to-yellow-500 text-slate-900 font-extrabold flex items-center justify-center text-base shadow-md';
+                        }
+                    });
+                } catch (e) {}
+            }
+        }
+    </script>
+</body>
+</html>
